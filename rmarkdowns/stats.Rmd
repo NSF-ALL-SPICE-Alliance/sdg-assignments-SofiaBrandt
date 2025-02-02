@@ -19,6 +19,12 @@ output:
 ### Setup
 
 
+```{r}
+install.packages("ggpubr")
+```
+```{r}
+install.packages("ggcorrplot")
+```
 
 
 ```{r setup, include=FALSE}
@@ -207,6 +213,25 @@ ggplot(sdr_data, aes(x = goal_12_score,
 ```
 
 ### <span style="color: red;">Challenge 1</span>
+```{r}
+library("plotly")
+```
+
+
+```{r}
+goal_11and12_scatterplot <- ggplot(sdr_data, aes(x = goal_11_score, 
+                     y = goal_12_score, label=country)) +
+  geom_point() +
+  geom_smooth() +
+  stat_cor() +
+  theme_minimal()
+
+ggplotly(goal_11and12_scatterplot)
+```
+
+
+```Goal 11 is sustainable cities and communities and goal 12 is responsible consumption and production. This plot shows a statistically significant negative correlation between these two sdg goals, so when a goal 11 has a high score, goal 12 tends to be low. I thought this was intersting becuase I imagend that sustainable cities and responsible consumption and production would go hand in hand. When I looked at the description of the SDG goals, I noticed some differences that may lead to this result. The sustainable cities seems to focus on the infrustructre of cities, incorporating more public areas, improved public transportation and sustainable housing wherease the responsible consupmtion and production focues on products  and waste geneartion. I also noticed that some of the higher income countries, like germany, canada and France have high goal 11 scores and low 12 scores. And some countries like Qatar have a very similar score for both goals.  
+
 
 - Edit the code chunk above to plot a linear regression of 2 different sdg scores 
 
