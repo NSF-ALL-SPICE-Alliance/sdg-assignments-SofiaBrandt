@@ -1,0 +1,204 @@
+---
+title: "Final Project"
+author: "Sofia Brandt"
+date: "2025-02-19"
+output:
+  html_document: default
+  pdf_document: default
+---
+### Final Project for the UN Certificate Program: SDG Analytics in R
+
+##load in packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(plotly)
+library(janitor)
+library(rnaturalearth)
+library(leaflet)
+library(sf)
+library(vembedr)
+library(missRanger)
+library(naniar)
+library(ggcorrplot)
+library(randomForest)
+library(ggpubr)
+      
+```
+
+
+##Read in data 
+
+```{r}
+sdr_data <- read_csv(here("data/SDR-2023-Data.csv"))
+```
+#clean column names
+```{r}
+sdr_data <- sdr_data %>% 
+  clean_names()
+```
+
+
+##Creating a SDG Map 
+```{r}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+```
+ 
+#selecting three columns 
+```{r}
+world <- world %>% 
+  select(name_long, iso_a3, geometry)
+```
+```{r}
+colnames(sdr_data)[which(colnames(sdr_data) == "country_code_iso3")] <- "iso_a3"
+```
+
+```{r}
+sdr_data_world_joined <- left_join(sdr_data, world, by = "iso_a3")
+```
+#checking to see if the data joined
+```{r}
+class(sdr_data_world_joined)
+```
+
+```{r}
+sdr_data_world_joined <- st_as_sf(sdr_data_world_joined)
+```
+
+```{r}
+class(sdr_data_world_joined)
+```
+```{r}
+sdr_data_world_joined <- st_transform(sdr_data_world_joined, "+proj=longlat +datum=WGS84")
+```
+
+```{r}
+mytext <- paste(
+    "Country: ", sdr_data_world_joined$country,"<br/>", 
+    "SDG score: ", round(sdr_data_world_joined$x2023_sdg_index_score, 2), 
+    sep="") %>%
+  lapply(htmltools::HTML)
+
+  
+leaflet(sdr_data_world_joined) %>% 
+  addTiles()  %>% 
+  setView( lat=10, lng=0 , zoom=2) %>%
+  addPolygons(stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5, color = ~colorQuantile("YlOrRd", goal_7_score)(goal_7_score), label = mytext)
+  
+
+```
+This visualization was created by rnaturalearth and leaflet. It was made interactive using ggplotly, so that you can zoom into the map, and hover over different countries to explore their Sustainable Development Goals (SDG) score. For this project, I wanted to focus on the county of Costa Rica and use RStudio to analyze their SDG data, look at trends, and make comparisons. In this visualization, I want to highlight and compare the SDG scores of different countries to Costa Rica's SDG score. Using the map to showcase this data is a fun way to start the project and gain an idea of my country's geographic area, which can help better understand any regional data and trends. 
+Costa Rica is in Central America and is known for its rich biodiversity, diverse ecosystems and species. Based on the 2023 sustainable development goal data, it has an SDG score of 73.6. Its bordering countries Panama and Nicaragua, have SDG scores of 67.3 and 64.8 respectively. So, despite being in the same geographic region and close to each other, there are variations in SDG scores. It's interesting to explore how the SDG scores vary based on geographic location you can begin to recognize areas that tend to have high SDG scores vs areas that have low SDG scores. 
+
+
+##Bar Chart: SDG Scores based on Region
+```{r}
+ggplot(sdr_data, aes(x= x2023_sdg_index_score, y = country)) +
+  geom_bar(stat = "identity")
+```
+
+```{r}
+ggplot(sdr_data, aes(x= x2023_sdg_index_score, y = country)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~regions_used_for_the_sdr, scales = "free_y") + 
+  theme(axis.text.y = element_text(size = 4)) +
+   labs ( title = "SDG Scores by Region", 
+                                       x = " SDG Score",
+                                       y = "Country")
+```
+
+#filtering for OECD countries
+```{r}
+OECD_sdr_data <- sdr_data %>% 
+  filter(regions_used_for_the_sdr == "OECD") 
+```
+
+```{r}
+SDG_Scores_OECD_geom_bar <- ggplot(OECD_sdr_data, aes(x= x2023_sdg_index_score, y = country, text = country)) +
+  geom_bar(stat = "identity", fill = "steelblue") + labs ( title = "SDG Scores in OECD Region", 
+                                       x = " SDG Score",
+                                       y = "Country") +
+  theme_bw()
+
+ggplotly(SDG_Scores_OECD_geom_bar)
+
+```
+The two charts above this bar chart demonstrate the process of narrowing down the OECD region that Costa Rica is assigned to in the sdr_data frame.
+OECD stands for Organization for Economic Co-operation and Development. The regions used for sdr column group countries based on geographic region, except for the countries taht are part of the OECD. There counties also tend to be wealthier and consume more energy. 
+
+As seen in the first chart, all the countries in the data set are featured, and the data is overwhelming. So, I split the data by regions following the lesson modules to create separate graphs. Finally, I isolated the OECD region's SDG score data. This bar chart shows the SDG score data for all counties in the OECD region in the SDR data set. The y-axis displays the country names in this region, and the x-axis shows the SDG scores. The plot is made interactive using ggplotly, so you can see the country name and SDG score when you hover over the bars. Similar to the map, you can see the total SDG score for the country. However, the bar chart format allows you to compare countries' scores all in one place visually. For example, Finland has the highest SDG score (86.8), while Mexico has the lowest (69.7). I also noticed that most countries in this region have scores greater than 75. However, Costa Rica has a score slightly under this value.
+
+## Creating a Bar chart: SDG Scores for Costa Rica
+#filtering the data to isolate Costa Rica data
+```{r}
+country_data <- sdr_data %>% filter(country=="Costa Rica")
+```
+
+```{r}
+country_data %>% select(goal_1_score:goal_17_score)
+```
+#reshaping data
+- using pivot_longer to create a new colums for SDG goals 1-17 and scores
+
+```{r}
+country_data_long <- country_data %>% pivot_longer(cols= goal_1_score:goal_17_score,
+names_to = "SDG",
+values_to = "score")
+
+```
+
+#creating a bar chart using gglot
+- interactive with ggplotly
+
+```{r}
+costa_rica_geom_bar <- ggplot(country_data_long, aes(x= SDG, y = score, fill = SDG)) +
+  geom_bar(stat = "identity")+ 
+  theme_bw() +
+      labs(title = "SDG Scores for Costa Rica", x = "Sustainable Development Goals", y = "Score") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 2))
+ 
+  ggplotly(costa_rica_geom_bar)
+  
+```
+
+This bar graph shows the 17 SDG scores for Costa Rica. The Score value is on the y-axis, the SDG is on the x-axis, and the individual SDG is color-coded and labeled on legend. The plot is also interactive by using the function ggplotly, so when you hover over each bar, you can see the SDG goal and its score.This graph makes it easy to compare Costa Rica’s highest and lowest SDG goal scores. For example, goal 10 refers to inequality within and among countries and has the lowest score of 19.3, while goal 4 refers to quality education with the highest score of 99.2.
+
+Goal 10 refers to reducing inequality within and among countries. I was curious why this goal was so low compared to the other score above 50. The lack of opportunities to improve social standing, especially for less educated workers, may contribute to this inequality gap in Costa Rica. As described in the article listed below, Many of the groups that are struggling are migrants, indigenous people, and single mothers. 
+https://borgenproject.org/sdg-10-in-costa-rica/
+ 
+
+
+
+## Scatterplot
+```{r}
+scatterplot_SDG4_10 <- ggplot(data = sdr_data, aes(x= goal_10_score, y = goal_4_score,text = country, color =  regions_used_for_the_sdr)) +
+  geom_point() +
+  theme_minimal()+
+labs(title = "SDG 4 and 10 Scores",
+     x = "Goal 10 Score",
+     y = "Goal 4 Score",
+     color = "Region") 
+
+ 
+
+ggplotly(scatterplot_SDG4_10)
+```
+
+
+```{r}
+ ggplot(data = sdr_data, aes(x= goal_10_score, y = goal_4_score)) +
+  geom_point() +
+  geom_smooth()+ #adds trendline
+  theme_classic() +
+  stat_cor() + #add Correlation Coefficient
+  labs(title = "SDG 4 and 10 Scores", x = "Goal 10 Score", y = "Goal 4 Score") 
+
+
+```
+
+These final two graphs are scatterplots that show the relationship between Goal 4 and Goal 10. The first scatterplot is interactive and color-coded based on the country region. Each point represents a country. There are a few things you can take away from the graph. Many of the OECD countries are congregated in the top right of the graph, while the Sub-Saharan Africa region is dispersed near the bottom. When hovering over Costa Rica's point, you can see that it is further away from the other countries in the OECD region and may be considered an outlier.
+
+I added a line in the second scatterplot to help visualize the relationship between the two SDG goals. Generally, the line curves slightly down in the middle and then slopes upward near the end. A positive correlation is represented by the trendline's upward slope from left to right so that both variables move in the same direction. A negative correlation is defined by the downwards-sloping line, indicating that the variables are moving in opposite directions. I also included the correlation coefficient for the graph(R=.32). So, .32 out of 1 indicates a relatively weak positive correlation. The p-value is used to measure the significance of the results from the statistical test. Here, the p<0.05 suggests that the data is statistically significant and unlikely to occur by chance.
+
+
